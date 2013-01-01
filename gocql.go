@@ -176,7 +176,8 @@ func Open(name string) (*connection, error) {
 // close a connection actively, typically used when there's an error and we want to ensure
 // we don't repeatedly try to use the broken connection
 func (cn *connection) close() {
-        cn.close()
+        cn.c.Close()
+        cn.c = nil // ensure we generate ErrBadConn when cn gets reused
 }
 
 func (cn *connection) send(opcode byte, body []byte) error {
