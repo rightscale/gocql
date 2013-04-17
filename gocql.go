@@ -299,7 +299,7 @@ type statement struct {
 	query    string
 	prepared []byte
 	columns  []string
-	meta     []uint16
+	meta     [][]uint16
 }
 
 func (s *statement) Close() error {
@@ -314,7 +314,7 @@ func (st *statement) NumInput() int {
 	return len(st.columns)
 }
 
-func parseMeta(body []byte) ([]string, []uint16, int) {
+func parseMeta(body []byte) ([]string, [][]uint16, int) {
 	flags := binary.BigEndian.Uint32(body)
 	globalTableSpec := flags&1 == 1
 	columnCount := int(binary.BigEndian.Uint32(body[4:]))
@@ -329,13 +329,37 @@ func parseMeta(body []byte) ([]string, []uint16, int) {
 		_, _ = keyspace, tablename
 	}
 	columns := make([]string, columnCount)
-	meta := make([]uint16, columnCount)
+	meta := make([][]uint16, columnCount)
 	for c := 0; c < columnCount; c++ {
 		l := int(binary.BigEndian.Uint16(body[i:]))
 		columns[c] = string(body[i+2 : i+2+l])
 		i += 2 + l
-		meta[c] = binary.BigEndian.Uint16(body[i:])
-		i += 2
+
+		// Collection types have a variable number of bytes for the meta data
+		//
+		// For example, a map collection type map<text, text> has the following byte order:
+		// 0 33, 0 13, 0 13
+		//
+		// where, 33 is Map and 13 is Varchar
+		dataType := binary.BigEndian.Uint16(body[i:])
+
+		// Right now only map collection type is implemented.
+		switch dataType {
+		case typeMap:
+			// meta has been changed to an array of []unit64 from an array of unit64,
+			// because the collection types have multiple dataTypes.
+			meta[c] = []uint16{
+				dataType,
+				binary.BigEndian.Uint16(body[i+2:]),
+				binary.BigEndian.Uint16(body[i+4:]),
+			}
+			i += 6
+		case typeList, typeSet:
+			panic("unsupported type")
+		default:
+			meta[c] = []uint16{dataType}
+			i += 2
+		}
 	}
 	return columns, meta, i
 }
@@ -405,7 +429,7 @@ func (st *statement) Query(v []driver.Value) (driver.Rows, error) {
 
 type rows struct {
 	columns []string
-	meta    []uint16
+	meta    [][]uint16
 	body    []byte
 	row     int
 	numRows int
