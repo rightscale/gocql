@@ -1,5 +1,3 @@
-Maintained by the RightScale "Blue_team"
-
 gocql
 =====
 
