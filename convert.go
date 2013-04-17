@@ -9,9 +9,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/titanous/go-backports/database/sql/driver"
+	"github.com/titanous/gocql/uuid"
 	"math"
 	"reflect"
-	"rightscale.com/gocql/uuid"
 	"strconv"
 	"time"
 )
