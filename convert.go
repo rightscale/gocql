@@ -9,7 +9,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"github.com/tux21b/gocql/uuid"
+	"github.com/rightscale/gocql/uuid"
 	"math"
 	"reflect"
 	"strconv"

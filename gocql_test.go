@@ -7,7 +7,7 @@ package gocql
 import (
 	"bytes"
 	"database/sql"
-	"github.com/tux21b/gocql/uuid"
+	"github.com/rightscale/gocql/uuid"
 	"testing"
 	"time"
 )
