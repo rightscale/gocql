@@ -35,6 +35,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
+	lz4 "github.com/bkaradzic/go-lz4"
 	"io"
 	"math/rand"
 	"net"
@@ -115,7 +116,11 @@ func Open(name string) (*connection, error) {
 			keyspace = strings.TrimSpace(parts[i][9:])
 		case strings.HasPrefix(parts[i], "compression="):
 			compression = strings.TrimSpace(parts[i][12:])
-			if compression != "snappy" {
+
+			switch compression {
+			case "snappy", "lz4":
+				// pass
+			default:
 				return nil, fmt.Errorf("unknown compression algorithm %q",
 					compression)
 			}
@@ -242,9 +247,19 @@ func (cn *connection) recv() (byte, []byte, error) {
 			return 0, nil, err
 		}
 	}
-	if header[1]&flagCompressed != 0 && cn.compression == "snappy" {
+	if header[1]&flagCompressed != 0 {
 		var err error
-		body, err = snappy.Decode(nil, body)
+
+		switch cn.compression {
+		case "snappy":
+			body, err = snappy.Decode(nil, body)
+		case "lz4":
+			// Note: go-lz4 only supports LittleEndian while cassandra native protocol
+			// expects BigEndian. We have to patch go-lz4.
+			body, err = lz4.Decode(nil, body)
+		default:
+			// noop
+		}
 		if err != nil {
 			cn.close()
 			return 0, nil, err
