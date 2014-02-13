@@ -42,21 +42,26 @@ import (
 )
 
 const (
-	protoRequest  byte = 0x01
-	protoResponse byte = 0x81
+	protoRequest  byte = 0x02
+	protoResponse byte = 0x82
 
-	opError        byte = 0x00
-	opStartup      byte = 0x01
-	opReady        byte = 0x02
-	opAuthenticate byte = 0x03
-	opCredentials  byte = 0x04
-	opOptions      byte = 0x05
-	opSupported    byte = 0x06
-	opQuery        byte = 0x07
-	opResult       byte = 0x08
-	opPrepare      byte = 0x09
-	opExecute      byte = 0x0A
-	opLAST         byte = 0x0A // not a real opcode -- used to check for valid opcodes
+	opError         byte = 0x00
+	opStartup       byte = 0x01
+	opReady         byte = 0x02
+	opAuthenticate  byte = 0x03
+	opOptions       byte = 0x05
+	opSupported     byte = 0x06
+	opQuery         byte = 0x07
+	opResult        byte = 0x08
+	opPrepare       byte = 0x09
+	opExecute       byte = 0x0A
+	opRegister      byte = 0x0B
+	opEvent         byte = 0x0C
+	opBatch         byte = 0x0D
+	opAuthChallenge byte = 0x0E
+	opAuthResponse  byte = 0x0F
+	opAuthSuccess   byte = 0x10
+	opLAST          byte = 0x10 // not a real opcode -- used to check for valid opcodes
 
 	flagCompressed byte = 0x01
 
@@ -375,15 +380,17 @@ func parseMeta(body []byte) ([]string, [][]uint16, int) {
 }
 
 func (st *statement) exec(v []driver.Value) error {
-	sz := 6 + len(st.prepared)
+	sz := 7 + len(st.prepared)
 	for i := range v {
 		if b, ok := v[i].([]byte); ok {
 			sz += len(b) + 4
 		}
 	}
-	body, p := make([]byte, sz), 4+len(st.prepared)
+	body, p := make([]byte, sz), 7+len(st.prepared)
 	binary.BigEndian.PutUint16(body, uint16(len(st.prepared)))
 	copy(body[2:], st.prepared)
+	binary.BigEndian.PutUint16(body[p-5:], uint16(st.cn.consistency))
+	body[p-3] = 1
 	binary.BigEndian.PutUint16(body[p-2:], uint16(len(v)))
 	for i := range v {
 		b, ok := v[i].([]byte)
@@ -394,7 +401,6 @@ func (st *statement) exec(v []driver.Value) error {
 		copy(body[p+4:], b)
 		p += 4 + len(b)
 	}
-	binary.BigEndian.PutUint16(body[p:], uint16(st.cn.consistency))
 	if err := st.cn.send(opExecute, body); err != nil {
 		return err
 	}
